@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "adsm/event-views",
+  "title": "ADSM Event Views",
+  "category": "widgets",
+  "icon": "calendar",
+  "editorScript": "adsm-event-views-block",
+  "style": "adsm-event-views-style",
+  "editorStyle": "adsm-event-views-editor-style",
+  "attributes": {
+    "defaultView": { 
+      "type": "string", 
+      "default": "list" },
+    "numberOfEvents": { 
+      "type": "number", 
+      "default": 5 
+    },
+    "embedCode": { 
+      "type": "string", 
+      "default": "" 
+    }
+  }
+}

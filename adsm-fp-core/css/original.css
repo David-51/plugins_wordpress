@@ -1,0 +1,295 @@
+/**
+ * Theme Name:     Gutentools Child
+ * Author:         DG
+ * Template:       gutentools
+ * Text Domain:	   gutentools-child
+ * Description:    Child theme from GutenTools
+ */
+
+/* CSS Additionnel */
+/* Base display utilities */
+
+/* Base display utilities */
+header {
+position: sticky !important;
+  top: 0 !important;
+  z-index: 9999 !important;
+background : white !important;
+}
+
+.d-none {
+  display: none !important;
+}
+
+.d-block {
+  display: block !important;
+}
+.ultp-block-excerpt {
+display: none !important;
+}
+
+@media (max-width: 991px) {
+  .wp-block-navigation__responsive-container-open:not(.always-shown) {
+    display: flex !important;
+  }
+
+  .wp-block-navigation__responsive-container {
+    display: none !important;
+  }
+
+  .wp-block-navigation__responsive-container.is-menu-open {
+    display: flex !important;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+    z-index: 9999;
+  }
+}
+
+/* Breakpoints similaires Bootstrap 5 */
+
+/* SM - ≥600px adaptation avec le thème*/
+@media (min-width: 600px) {
+  .d-sm-none {
+    display: none !important;
+  }
+  .d-sm-block {
+    display: block !important;
+  }
+.ultp-block-excerpt {
+display: block !important;
+}
+
+}
+
+/* MD - ≥768px */
+@media (min-width: 768px) {
+  .d-md-none {
+    display: none !important;
+  }
+  .d-md-block {
+    display: block !important;
+  }
+
+}
+
+/* LG - ≥992px */
+@media (min-width: 992px) {
+  .d-lg-none {
+    display: none !important;
+  }
+  .d-lg-block {
+    display: block !important;
+  }
+.wp-block-navigation__responsive-container-open {
+    display: none !important;
+  }
+
+  .wp-block-navigation__responsive-container {
+    display: flex !important;
+    position: static;
+    flex-direction: row;
+    background: none;
+  }
+}
+
+/* XL - ≥1200px */
+@media (min-width: 1200px) {
+  .d-xl-none {
+    display: none !important;
+  }
+  .d-xl-block {
+    display: block !important;
+  }
+}
+
+/* XXL - ≥1400px */
+@media (min-width: 1400px) {
+  .d-xxl-none {
+    display: none !important;
+  }
+  .d-xxl-block {
+    display: block !important;
+  }
+}
+
+
+.action-signin .wp-block-button__link {
+  background-color: #c31212 !important;
+  color: black;
+  transition: background-color 0.3s ease;
+}
+
+.action-signin .wp-block-button__link:hover {
+  background-color: #e02828
+ !important;
+}
+
+.logged-in .action-signin, .logged-in .connexion {
+ display: none !important;
+}
+
+.deconnexion {
+display : none !important;
+}
+
+.logged-in .deconnexion {
+display: inline-block !important;
+}
+.ms-1 {
+	margin-left: 1rem !important;
+}
+.ms-2 {
+	margin-left: 2rem !important;
+}
+.mb-0 {
+	margin-bottom: 0rem !important;
+}
+.mb-1 {
+margin-bottom : 1rem !important;
+}
+.mb-2 {
+	margin-bottom: 2rem !important;
+}
+.mb-3 {
+	margin-bottom: 3rem !important;
+}
+
+.mb-4 {
+	margin-bottom: 4rem !important;
+}
+
+.mt-3 {
+margin-top : 3rem !important;
+}
+
+.mt-4 {
+margin-top : 4rem !important;
+}
+/*
+.ultp-block-author {
+display : none !important;
+}
+*/
+.ultp-block-item {
+border-radius: 8px;
+overflow: hidden;
+}
+
+/* Grille des catégories */
+.fp-categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+/* Boutons de catégorie */
+.fp-category-btn {
+    display: block;
+    text-align: center;
+    padding: 12px 16px;
+    background: var(--wp--preset--color--primary, #0073aa);
+    color: #fff !important;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.fp-category-btn:hover {
+    background: var(--wp--preset--color--secondary, #005f8d);
+}
+
+.fp-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2rem;
+}
+
+.fp-table th, .fp-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+.fp-table th {
+    background: #f5f5f5;
+    text-align: left;
+}
+
+.fp-download-btn {
+    background: var(--wp--preset--color--primary, #0073aa);
+    color: #fff !important;
+    padding: 6px 10px;
+    border-radius: 4px;
+    text-decoration: none;
+}
+
+.fp-download-btn:hover {
+    background: var(--wp--preset--color--secondary, #005f8d);
+}
+.table-fiches {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+.fp-title {
+	font-size: 1.2rem;
+	font-weight: bold;
+}
+
+.table-fiches th,
+.table-fiches td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+/* Supprime la bordure verticale entre colonnes */
+.table-fiches td + td {
+    border-left: none;
+}
+.table-noborder-right {
+	border-right:none !important;
+}
+
+.btn-center {
+	text-align: center !important;
+}
+.btn-download {
+    color: white;
+	padding: 15px 8px 5px 8px;
+	margin: 2px;
+    text-decoration: none;
+    border-radius: 4px;
+	background: #005f8d;
+}
+.btn-download:hover {
+    background: #005f8d;
+}
+
+.table-btn-cell {
+	min-width: 3.5em;
+}
+.icon-download {
+	width: 1.5em;
+	height: 1.5em;
+	fill: currentcolor;
+}
+.text-center {
+	text-align: center;
+}
+.text-ghost {
+	font-style: italic;
+	color: gray;
+}
+.text-end {
+	text-align: end;
+}
+.text-danger {
+	color: red;
+}

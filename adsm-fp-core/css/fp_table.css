@@ -1,0 +1,63 @@
+/* Tableau des fiches pratiques */
+.table-fiches {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.table-fiches th,
+.table-fiches td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.table-fiches th {
+    background: #f5f5f5;
+}
+
+/* Supprime la bordure verticale entre colonnes */
+.table-fiches td + td {
+    border-left: none;
+}
+
+.table-noborder-right {
+    border-right: none !important;
+}
+
+/* Alignement centré pour certaines cellules */
+.btn-center {
+    text-align: center !important;
+}
+
+/* Cellule de bouton */
+.table-btn-cell {
+    min-width: 3.5em;
+}
+
+/* Bouton de téléchargement */
+.btn-download {
+    color: #fff;
+    padding: 15px 8px 5px 8px;
+    margin: 2px;
+    text-decoration: none;
+    border-radius: 4px;
+    background: #005f8d;
+}
+
+.btn-download:hover {
+    background: #005f8d;
+}
+
+/* Titre des fiches */
+.fp-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* Icône de téléchargement */
+.icon-download {
+    width: 1.5em;
+    height: 1.5em;
+    fill: currentcolor;
+}

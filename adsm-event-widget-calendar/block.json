@@ -1,0 +1,14 @@
+{
+  "apiVersion": 2,
+  "name": "adsm/event-calendar-widget",
+  "title": "ADSM Event Calendar Widget",
+  "category": "widgets",
+  "icon": "calendar-alt",
+  "description": "Affiche une liste des événements à venir depuis The Events Calendar.",
+  "supports": {
+    "html": false
+  },
+  "editorScript": "adsm-event-widget-calendar-block",
+  "editorStyle": "adsm-event-widget-calendar-editor",
+  "style": "adsm-event-widget-calendar-style"
+}

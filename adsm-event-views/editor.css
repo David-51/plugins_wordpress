@@ -1,0 +1,7 @@
+.adsm-event-views {
+    border: 1px dashed #ccc;
+    padding: 10px;
+}
+.adsm-event-list, .adsm-event-calendar {
+    margin-top: 10px;
+}

@@ -1,0 +1,144 @@
+<?php
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+/**
+ * Affiche un calendrier mensuel sous forme de grille (42 cases) avec événements.
+ */
+function adsm_render_calendar_grid( $month = null, $year = null ) {
+    // Mois et année courants si non fournis
+    $month = $month ?: date( 'n' );
+    $year  = $year  ?: date( 'Y' );
+
+    // Noms des jours en français (lundi -> dimanche)
+    $days = [ 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim' ];
+
+    // Premier jour du mois
+    $first_day_of_month = mktime( 0, 0, 0, $month, 1, $year );
+    $days_in_month      = date( 't', $first_day_of_month );
+    $first_weekday      = ( date( 'N', $first_day_of_month ) ); // 1 (lundi) → 7 (dimanche)
+
+    // Décalage avant le premier jour
+    $offset = $first_weekday - 1;
+    $total_cells = 35;
+
+    // ---- Récupération des événements du mois ----
+    $events = new WP_Query([
+        'post_type'      => 'tribe_events',
+        'posts_per_page' => -1,
+        'meta_query'     => [
+            [
+                'key'     => '_EventStartDate',
+                'value'   => [ "$year-$month-01 00:00:00", "$year-$month-$days_in_month 23:59:59" ],
+                'compare' => 'BETWEEN',
+                'type'    => 'DATETIME'
+            ]
+        ]
+    ]);
+
+    $events_by_day = [];
+    if ( $events->have_posts() ) {
+        while ( $events->have_posts() ) {
+            $events->the_post();
+            $event_id   = get_the_ID();
+            $start_date = get_post_meta( $event_id, '_EventStartDate', true );
+            $end_date   = get_post_meta( $event_id, '_EventEndDate', true );
+
+            $start_day = date( 'j', strtotime( $start_date ) );
+            $end_day   = date( 'j', strtotime( $end_date ?: $start_date ) );
+
+            $venue_id = tribe_get_venue_id( $event_id );
+            $city     = $venue_id ? tribe_get_city( $venue_id ) : '';
+            
+            $thumbnail = get_the_post_thumbnail_url( $event_id, 'thumbnail' );
+            if(!$thumbnail) {
+                $thumbnail = adsm_get_placeholder_image(200);
+            } 
+            for ( $d = $start_day; $d <= $end_day; $d++ ) {
+                $events_by_day[$d][] = [
+                    'id'    => $event_id,
+                    'title' => get_the_title(),
+                    'link'  => get_permalink(),
+                    'thumb' => $thumbnail,
+                    'city'  => $city,
+                    'start' => $start_date,
+                    'end'   => $end_date
+                ];
+            }
+        }
+    wp_reset_postdata();
+    }
+
+    ob_start(); ?>
+    <div class="adsm-calendar-nav">
+        <button class="adsm-cal-btn adsm-cal-today" data-month="<?php echo date('n'); ?>" data-year="<?php echo date('Y'); ?>">Ce mois-ci</button>
+        <button class="adsm-cal-btn adsm-cal-prev" data-month="<?php echo $month; ?>" data-year="<?php echo $year; ?>">&laquo; Mois précédent</button>
+        <button class="adsm-cal-btn adsm-cal-next" data-month="<?php echo $month; ?>" data-year="<?php echo $year; ?>">Mois suivant &raquo;</button>
+        <span class="adsm-cal-current"><?php echo esc_html( ucfirst( wp_date( 'F Y', $first_day_of_month ) ) ); ?></span>
+    </div>
+
+    <div class="adsm-calendar-grid">
+        <?php foreach ( $days as $day ) : ?>
+            <div class="adsm-cal-dayname"><?php echo esc_html( $day ); ?></div>
+        <?php endforeach; ?>
+
+        <?php
+        for ( $i = 0; $i < $offset; $i++ ) {
+            echo '<div class="adsm-cal-cell empty"></div>';
+        }
+
+        for ( $day = 1; $day <= $days_in_month; $day++ ) {
+            $has_events = ! empty( $events_by_day[$day] );
+            echo '<div class="adsm-cal-cell' . ( $has_events ? ' has-events' : '' ) . '" data-day="' . intval( $day ) . '">';
+            echo intval( $day );
+            if ( $has_events ) {
+                foreach ( $events_by_day[$day] as $ev ) {
+                    echo '<span class="adsm-event-dot"></span>';
+                }
+            }
+            echo '</div>';
+        }
+
+        $remaining = $total_cells - ($offset + $days_in_month);
+        for ( $i = 0; $i < $remaining; $i++ ) {
+            echo '<div class="adsm-cal-cell empty"></div>';
+        }
+        ?>
+    </div>
+
+    <div class="adsm-calendar-events"></div>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const events = <?php echo wp_json_encode( $events_by_day ); ?>;
+        const container = document.querySelector(".adsm-calendar-events");
+
+        document.querySelectorAll(".adsm-cal-cell.has-events").forEach(cell => {
+            cell.addEventListener("click", function() {
+                const day = this.dataset.day;
+                const list = events[day] || [];
+                let html = "";
+
+                list.forEach(ev => {
+                    html += `
+                        <div class="adsm-event-item">
+                            <div class="thumb"><img src="${ev.thumb}" alt=""></div>
+                            <div class="info">
+                                <h2><a href="${ev.link}">${ev.title}</a></h2>
+                                <p class="ms-1"><span class="dashicons dashicons-location"></span> ${ev.city || ''}</p>
+                                <p class="ms-1"><span class="dashicons dashicons-calendar"></span> 
+                                    ${new Date(ev.start).toLocaleDateString('fr-FR')} 
+                                    ${ev.end ? ' - ' + new Date(ev.end).toLocaleDateString('fr-FR') : ''}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            });
+        });
+    });
+    </script>
+    <?php
+    return ob_get_clean();
+}

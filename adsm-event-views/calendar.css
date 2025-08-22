@@ -1,0 +1,209 @@
+.adsm-calendar-nav {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+.adsm-cal-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--wp-admin-theme-color);
+  background: #f8f9fa;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.adsm-cal-btn:hover {
+  background: var(--wp-admin-theme-color);
+  color: #fff;
+}
+.adsm-cal-current {
+  font-weight: bold;
+  margin-left: auto;
+}
+
+.adsm-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+.adsm-cal-dayname {
+  text-align: center;
+  font-weight: 600;
+  padding: 5px 0;
+  background: #f0f0f0;
+  border-radius: 5px;
+}
+.adsm-cal-cell {
+  aspect-ratio: 1 / 1;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  text-align: right;
+  padding: 5px;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+.adsm-cal-cell.empty {
+  background: #fafafa;
+  cursor: default;
+}
+.adsm-cal-cell:hover {
+  background: #eef6ff;
+}
+.adsm-calendar-events {
+  margin-top: 20px;
+}
+/* === Styles spécifiques au calendrier === */
+.adsm-event-calendar {
+  margin-top: 20px;
+  max-width: 800px;
+}
+
+/* Navigation */
+.adsm-event-calendar .adsm-calendar-nav {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+.adsm-event-calendar .adsm-cal-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--wp-admin-theme-color);
+  background: #f8f9fa;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.adsm-event-calendar .adsm-cal-btn:hover {
+  background: var(--wp-admin-theme-color);
+  color: #fff;
+}
+.adsm-event-calendar .adsm-cal-current {
+  font-weight: bold;
+  margin-left: auto;
+}
+
+/* Grille */
+.adsm-event-calendar .adsm-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+.adsm-event-calendar .adsm-cal-dayname {
+  text-align: center;
+  font-weight: 600;
+  padding: 5px 0;
+  background: #f0f0f0;
+  border-radius: 5px;
+  font-size: 0.85em;
+}
+.adsm-event-calendar .adsm-cal-cell {
+  aspect-ratio: 1 / 1;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  text-align: right;
+  padding: 5px;
+  font-size: 0.9em;
+  cursor: pointer;
+  position: relative;
+}
+.adsm-event-calendar .adsm-cal-cell.empty {
+  background: #fafafa;
+  cursor: default;
+}
+.adsm-event-calendar .adsm-cal-cell:hover {
+  background: #eef6ff;
+}
+
+/* Pastilles d’événements */
+.adsm-event-calendar .adsm-cal-cell.has-events {
+  border-color: var(--wp-admin-theme-color);
+}
+.adsm-event-calendar .adsm-event-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--wp-admin-theme-color);
+  border-radius: 50%;
+  margin-left: 3px;
+}
+
+/* Zone affichage des événements */
+.adsm-event-calendar .adsm-calendar-events {
+  margin-top: 20px;
+}
+
+/* Items affichés après clic */
+.adsm-event-calendar .adsm-calendar-events .adsm-event-item {
+  display: flex;
+  align-items: center;
+  border-left: 3px solid #ccc;
+  padding: 10px;
+  margin-bottom: 15px;
+  background: #fafafa;
+  border-radius: 6px;
+  gap: 12px;
+}
+
+.adsm-event-calendar .adsm-calendar-events .thumb {
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.adsm-event-calendar .adsm-calendar-events .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.adsm-event-calendar .adsm-calendar-events .info {
+  flex: 1;  
+}
+.adsm-event-calendar .adsm-calendar-events h2 {
+  margin: 0 0 10px 0;
+  font-size: 1.3em;
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adsm-event-calendar .adsm-calendar-events p {
+  margin: 0 0 6px 0;
+  font-size: 0.9em;
+  color: #333;
+}
+.adsm-event-calendar .adsm-calendar-events .icon {
+  margin-right: 5px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .adsm-event-calendar .adsm-calendar-events .adsm-event-item {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-left: 1em;
+  }
+  .adsm-event-calendar .adsm-calendar-events .thumb {
+    width: 100%;
+    height: auto;
+    max-height: 200px;
+    display: none;
+  }
+  .adsm-event-calendar .adsm-calendar-events h2 {
+    font-size: 1.1em;
+    max-width: 100%;
+  }
+}
+
+.adsm-calendar-wrapper {
+    width: 100%;
+}
+
+.adsm-cal-cell.has-events { cursor:pointer; }
+.adsm-cal-cell.has-events:hover { background-color:#f0f0f0; }
+.adsm-calendar-events { margin-top:20px; }
+.adsm-event-item { display:flex; gap:10px; margin-bottom:15px; }
+.adsm-event-item .thumb img { width:50px; height:50px; object-fit:cover; }
+.adsm-event-item .info h2 { margin:0; font-size:14px; }
