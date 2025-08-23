@@ -1,0 +1,17 @@
+# Ignorer tout
+*
+
+# Ne pas ignorer le .gitignore lui-même
+!.gitignore
+
+# Ré-inclure uniquement les plugins commençant par adsm_
+!adsm_*/
+
+# Ignorer les fichiers système et temporaires
+*.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+*.log
+*.tmp
+*.swp
