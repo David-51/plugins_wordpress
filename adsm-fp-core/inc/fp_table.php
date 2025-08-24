@@ -4,16 +4,19 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Enqueue CSS pour le bloc fiches pratiques
 function fp_enqueue_table_block_assets() {        
-    $css_file = plugin_dir_url( __FILE__ ) . '../css/fp_table.css';
-    if(!file_exists($css_file)){
-        error_log("Le fichier CSS fp_table.css est introuvable à l'emplacement : " . $css_file);
+    $css_url = plugin_dir_url( __FILE__ ) . '../css/fp_table.css';
+    $css_path = plugin_dir_path( __FILE__ ) . '../css/fp_table.css';
+
+     // Vérifie que le fichier CSS existe
+    if(!file_exists($css_path)){
+        error_log("Le fichier CSS fp_table.css est introuvable à l'emplacement : " . $css_path);
         return;
     }
     wp_enqueue_style(
         'adsm-fp-table',
-        $css_file,
+        $css_url,
         [], // dépendances
-        filemtime( $css_file ) // version basée sur la date de modification
+        filemtime( $css_path ) // version basée sur la date de modification
     );
 }
 add_action( 'enqueue_block_assets', 'fp_enqueue_table_block_assets' );

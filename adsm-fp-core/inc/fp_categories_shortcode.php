@@ -3,15 +3,18 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Enqueue CSS pour le bloc fiches pratiques
 function fp_enqueue_adsm_fp_categories_block_assets() {    
-    $css_file = plugin_dir_url( __FILE__ ) . '../css/fp_categories.css';
-    if(file_exists($css_file)) {
+    $css_url = plugin_dir_url( __FILE__ ) . '../css/fp_categories.css';
+    $css_path = plugin_dir_path( __FILE__ ) . '../css/fp_categories.css';
+
+     // Vérifie que le fichier CSS existe
+    if(file_exists($css_path)) {
         wp_enqueue_style(
             'fp-categories',
-            $css_file,
+            $css_url,
             [], // dépendances
-            filemtime( $css_file ));      
+            filemtime( $css_path ));      
     } else {
-        error_log("Le fichier CSS fp_categories.css est introuvable à l'emplacement : " . $css_file);
+        error_log("Le fichier CSS fp_categories.css est introuvable à l'emplacement : " . $css_path);
         return;
     }
     
