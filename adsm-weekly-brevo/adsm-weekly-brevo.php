@@ -8,6 +8,7 @@
  */
 
 if (!defined('ABSPATH')) exit;
+require_once __DIR__ . '/inc/BrevoClient.php';
 
 class Asso_Weekly_Brevo {
     public const OPT_KEY = 'asso_weekly_brevo_options';
@@ -20,7 +21,7 @@ class Asso_Weekly_Brevo {
         add_action('update_option_' . self::OPT_KEY, [$this, 'maybe_reschedule'], 10, 3);
         register_activation_hook(__FILE__, [$this, 'on_activate']);
         register_deactivation_hook(__FILE__, [$this, 'on_deactivate']);
-        add_action('admin_post_asso_weekly_brevo_send_now', [$this, 'handle_send_now']);
+        add_action('admin_post_asso_weekly_brevo_send_now', [$this, 'handle_send_now']);        
     }
 
     /* -------------------- Admin UI -------------------- */
@@ -77,7 +78,7 @@ class Asso_Weekly_Brevo {
     }
 
     public function field_cb($args) {
-        $o = get_option(self::OPT_KEY, $this->defaults());
+        $o = get_option(self::OPT_KEY, $this->defaults_options());
         $k = $args['key'];
         $v = isset($o[$k]) ? $o[$k] : '';
 
@@ -132,7 +133,7 @@ class Asso_Weekly_Brevo {
 
     public function render_settings_page() {
         if (!current_user_can('manage_options')) return;
-        $o = get_option(self::OPT_KEY, $this->defaults());
+        $options = get_option(self::OPT_KEY, $this->defaults_options());
         if (isset($_GET['sent'])) {
             if ($_GET['sent'] == '1') {
                 echo '<div class="notice notice-success is-dismissible"><p>Envoi test réussi ! Vérifiez votre boîte email.</p></div>';
@@ -166,7 +167,7 @@ class Asso_Weekly_Brevo {
     }
 
     public function sanitize_options($in) {
-        $d = $this->defaults();
+        $d = $this->defaults_options();
         $out = [];
 
         // Clé API : ne pas écraser si champ vide ou contient juste des étoiles
@@ -194,7 +195,11 @@ class Asso_Weekly_Brevo {
         return $out;
     }
 
-    private function defaults() {
+    /**
+     * Get default options
+     * @return array{api_key: string, dow: int, hour: int, include_updated: int, list_id: int, sender_email: mixed, sender_name: string, subject: string, template_footer: string, template_header: string, window_days: int}
+     */
+    private function defaults_options() {
         return [
             'api_key' => '',
             'sender_name' => get_bloginfo('name'),
@@ -233,7 +238,7 @@ class Asso_Weekly_Brevo {
     }
 
     private function next_timestamp() {
-        $o = get_option(self::OPT_KEY, $this->defaults());
+        $o = get_option(self::OPT_KEY, $this->defaults_options());
         $tz_string = get_option('timezone_string');
         if ($tz_string) {
             try { $dtz = new DateTimeZone($tz_string); }
@@ -257,41 +262,53 @@ class Asso_Weekly_Brevo {
     /* -------------------- Manual trigger -------------------- */
     
     public function handle_send_now() {
-    if (!current_user_can('manage_options')) wp_die('Nope.');
-    check_admin_referer('asso_weekly_brevo_send_now');
+        if (!current_user_can('manage_options')) wp_die('Nope.');
+        check_admin_referer('asso_weekly_brevo_send_now');
 
-    $ok = $this->build_and_send(true); // true = test manuel
+        $ok = $this->build_and_send(true); // true = test manuel
 
-    // rediriger avec paramètre ?sent=1 ou ?sent=0
-    wp_safe_redirect(add_query_arg('sent', $ok ? '1' : '0', admin_url('options-general.php?page=asso-weekly-brevo')));
-    exit;
-}
+        // rediriger avec paramètre ?sent=1 ou ?sent=0
+        wp_safe_redirect(add_query_arg('sent', $ok ? '1' : '0', admin_url('options-general.php?page=asso-weekly-brevo')));
+        exit;
+    }
 
     /* -------------------- Core: build & send -------------------- */
 
-    public function build_and_send($manual = false) {
-        $o = get_option(self::OPT_KEY, $this->defaults());
-        if (empty($o['api_key']) || empty($o['sender_email']) || empty($o['list_id'])) {
+    public function build_and_send($test = false) {
+        $options = get_option(self::OPT_KEY, $this->defaults_options());
+        if (empty($options['api_key']) || empty($options['sender_email']) || empty($options['list_id'])) {
             error_log('[Asso Weekly Brevo] Options incomplètes.');
             return false;
         }
 
-        $posts_html = $this->collect_posts_html($o);
+        $posts_html = $this->collect_posts_html($options);
         if (!$posts_html) {
             error_log('[Asso Weekly Brevo] Aucun article dans la période.');
             return true; // Rien à envoyer, mais pas une erreur
         }
 
-        $html = $this->wrap_html($o, $posts_html);
-        $subject = $o['subject'];
+        $html = $this->wrap_html($options, $posts_html);
+
+        $subject = $options['subject'];
 
         // Envoi via Marketing API: créer une campagne + sendNow
-        $campaignId = $this->create_campaign($o, $subject, $html, $manual);
+        $client = new BrevoClient($options['api_key']);
+        $resp = $client->create_campaign($options, $subject, $html, $test);
+        if(is_array($resp) && isset($resp['id'])) {
+            $campaignId = $resp['id'];
+        } else {
+            error_log('[Asso Weekly Brevo] Réponse inattendue lors de la création de campagne : ' . print_r($resp, true));
+            return false;
+        }        
         if (!$campaignId) {
             error_log('[Asso Weekly Brevo] Échec création campagne.');
             return false;
         }
-        $sent = $this->send_campaign_now($o, $campaignId);
+        if($test) {
+            $sent = $client->send_campaign_now($campaignId, true); // test
+        }else{
+            $sent = $client->send_campaign_now($campaignId);
+        }
         if (!$sent) {
             error_log('[Asso Weekly Brevo] Échec envoi campagne.');
             return false;
@@ -400,82 +417,6 @@ class Asso_Weekly_Brevo {
         return ob_get_clean();
     }
 
-    /* -------------------- Brevo Marketing API -------------------- */
-
-    private function create_campaign($o, $subject, $html, $manual = false) {
-        $endpoint = 'https://api.brevo.com/v3/emailCampaigns';
-        $payload = [
-            'name' => 'Asso Weekly ' . date_i18n('Y-m-d H:i'),
-            'subject' => $subject,
-            'sender' => [
-                'name'  => $o['sender_name'],
-                'email' => $o['sender_email'],
-            ],
-            'htmlContent' => $html,
-            'recipients' => [
-                'listIds' => [ intval($o['list_id']) ]
-            ],
-            'inlineImageActivation' => false,
-            'mirrorActive' => false,
-            // 'header' => '',
-            // 'footer' => '',
-            'utmCampaign' => 'asso-weekly',
-            'tag' => 'asso-weekly',
-            // on crée la campagne en "draft" et on l'enverra immédiatement après
-            'scheduledAt' => gmdate('Y-m-d\TH:i:s\Z'), // ✅ format RFC3339 UTC
-        ];
-        if($manual){
-            // $payload['sendAtBestTime'] = true;
-            unset($payload['scheduledAt']);
-        }
-
-        $res = wp_remote_post($endpoint, [
-            'headers' => [
-                'api-key' => $o['api_key'],
-                'content-type' => 'application/json'
-            ],
-            'timeout' => 30,
-            'body' => wp_json_encode($payload),
-        ]);
-
-        if (is_wp_error($res)) return 0;
-        $code = wp_remote_retrieve_response_code($res);
-        $body = json_decode(wp_remote_retrieve_body($res), true);
-        if ($code >= 200 && $code < 300 && !empty($body['id'])) {
-            return intval($body['id']);
-        }
-        error_log('[Asso Weekly Brevo] create_campaign error: ' . $code . ' ' . wp_remote_retrieve_body($res));
-        return 0;
-    }
-
-    private function send_campaign_now($o, $campaignId) {
-        $endpoint = "https://api.brevo.com/v3/emailCampaigns/{$campaignId}/sendNow";
-
-        error_log("[Asso Weekly Brevo] Tentative d'envoi campagne ID: {$campaignId} vers endpoint: {$endpoint}");
-
-        $res = wp_remote_post($endpoint, [
-            'headers' => [
-                'api-key' => $o['api_key'],
-                'content-type' => 'application/json'
-            ],
-            'timeout' => 30,
-            'body' => '{}',
-        ]);
-
-        if (is_wp_error($res)) {
-            error_log("[Asso Weekly Brevo] Erreur WP: " . $res->get_error_message());
-            return false;
-        }
-
-        $code = wp_remote_retrieve_response_code($res);
-        $body = wp_remote_retrieve_body($res);
-        error_log("[Asso Weekly Brevo] Code HTTP: {$code}, Body: {$body}");
-
-        if ($code >= 200 && $code < 300) return true;
-
-        error_log('[Asso Weekly Brevo] Échec envoi campagne. Réponse: ' . $body);
-        return false;        
-        }
-    }
+}
 
 new Asso_Weekly_Brevo();
