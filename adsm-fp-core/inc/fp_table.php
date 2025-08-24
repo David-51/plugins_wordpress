@@ -5,12 +5,12 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // Enqueue CSS pour le bloc fiches pratiques
 function fp_enqueue_table_block_assets() {
     // Vérifie que le fichier CSS existe
-    $css_file = plugin_dir_url( __DIR__ ) . '/../css/fp_table.css';
+    $css_file = plugin_dir_url( __DIR__ ) . '/css/fp_table.css';
     wp_enqueue_style(
         'adsm-fp-table',
         $css_file,
         [], // dépendances
-        filemtime( plugin_dir_path( __DIR__ ) . '/../css/fp_table.css' ) // version basée sur la date de modification
+        filemtime( plugin_dir_path( __DIR__ ) . '/css/fp_table.css' ) // version basée sur la date de modification
     );
 }
 add_action( 'enqueue_block_assets', 'fp_enqueue_table_block_assets' );
