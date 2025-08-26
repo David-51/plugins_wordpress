@@ -283,7 +283,19 @@ class Admin {
 
     /**
      * Get default options
-     * @return array{api_key: string, dow: int, hour: int, include_updated: int, list_id: int, sender_email: mixed, sender_name: string, subject: string, template_footer: string, template_header: string, window_days: int}
+     * @return array{
+     *   api_key: array{label: string, default: string},
+     *   sender_name: array{label: string, default: string},
+     *   sender_email: array{label: string, default: string},
+     *   list_id: array{label: string, default: int},
+     *   subject: array{label: string, default: string},
+     *   dow: array{label: string, default: int},
+     *   hour: array{label: string, default: int},
+     *   window_days: array{label: string, default: int},
+     *   include_updated: array{label: string, default: int},
+     *   template_header: array{label: string, default: string},
+     *   template_footer: array{label: string, default: string}
+     * }
      */
     public function options(): array {
         return [
