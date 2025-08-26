@@ -1,5 +1,5 @@
 <?php
-
+if (!defined('ABSPATH')) exit;
 class SecretKeyManager {
     private const SALT_CONST = 'XNIRIS_API_SALT';
     private const ALGO = 'aes-256-gcm';
