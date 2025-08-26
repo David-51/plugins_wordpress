@@ -1,14 +1,19 @@
 <?php
 if (!defined('ABSPATH')) exit;
-
+// 
 class Admin {    
 
+    private bool $check_api_key = false;
+    private string $admin_email = '';
+    private bool $admin_exists_in_client = false;
     public function __construct(
         private readonly string $OPT_KEY,
         private readonly BrevoClient $client,
         private readonly SecretKeyManager $secretKeyManager
     ) {
-        add_action('admin_notices', [$secretKeyManager, 'check_secret_key']);
+        add_action('admin_notices', [$secretKeyManager, 'check_secret_key']);          
+        // Tester de suite dans le constructeur si la clé API existe, et si elle est valide.
+        // Tester si le user connecter est inscrite sur Brevo      
         // Actions et filtres
     }    
 
@@ -31,14 +36,14 @@ class Admin {
         $stored_options = get_option($this->OPT_KEY, []); // tout le tableau d'options
         $fields = $this->options();
         
-        $stored_api_key = isset($stored_options['api_key']) && !empty($stored_options['api_key']) ? $stored_options['api_key'] : '';
-        $is_valid_api_key = false;
-        
+        $stored_api_key = isset($stored_options['api_key']) && !empty($stored_options['api_key']) ? $stored_options['api_key'] : '';        
+        $this->is_valid_api_key($stored_api_key);
+
         if(!empty($stored_api_key)){
-            if(!$this->is_valid_api_key($stored_api_key)){
+            if(!$this->check_api_key){
                 add_settings_error($this->OPT_KEY, 'api_key_error', 'La clé API n\'est pas valide.');
             }else{                
-                $is_valid_api_key = true;
+                $this->check_api_key = true;
             }            
         }
     
@@ -46,7 +51,7 @@ class Admin {
             // On affiche toujours la clé API
             if ($key !== 'api_key') {
                 if(!$stored_api_key) continue;
-                if(!$is_valid_api_key) continue;
+                if(!$this->check_api_key) continue;
             }            
 
             add_settings_field(
@@ -208,7 +213,11 @@ class Admin {
 
     public function render_settings_page() {        
         if (!current_user_can('manage_options')) return;
-        $options = get_option($this->OPT_KEY, $this->options());
+        $current_user = wp_get_current_user();        
+        
+        // vérifier que l'email existe dans brevo
+        
+
         if (isset($_GET['sent'])) {
             if ($_GET['sent'] == '1') {
                 echo '<div class="notice notice-success is-dismissible"><p>Envoi test réussi ! Vérifiez votre boîte email.</p></div>';
@@ -226,7 +235,7 @@ class Admin {
                 do_settings_sections($this->OPT_KEY);
                 submit_button('Enregistrer et (re)programmer');
                 ?>
-            </form>
+            </form>            
 
             <hr />
             <h2>Email de Test</h2>
@@ -348,8 +357,19 @@ class Admin {
             $this->client->set_apiKey($safe_key);
             $this->client->get_senders();            
         }catch(\Exception $e){
+            return $this->check_api_key = false;
+        }        
+        return $this->check_api_key = true;
+    }
+    private function current_user_exists_in_client(): bool {
+        $current_user = wp_get_current_user();
+        $admin_mail = $current_user->user_email;
+        try {
+            $this->client->set_apiKey($this->decrypt_api_key_safe($this->check_api_key));
+            $contact = $this->client->get_contact($admin_mail);
+            return !empty($contact);
+        } catch (\Exception $e) {
             return false;
         }        
-        return true;
     }
 }
