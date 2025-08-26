@@ -9,214 +9,30 @@
 
 if (!defined('ABSPATH')) exit;
 require_once __DIR__ . '/inc/BrevoClient.php';
+require_once __DIR__ . '/inc/Admin.php';
+require_once __DIR__ . '/inc/SecretKeyManager.php';
 
-class Asso_Weekly_Brevo {
-    public const OPT_KEY = 'asso_weekly_brevo_options';
-    public const CRON_HOOK = 'asso_weekly_brevo_send_event';
+$OPT_KEY = 'xniris_weekly_brevo_options';
+$CRON_HOOK = 'xniris_weekly_brevo_send_event';
+$client = new BrevoClient($OPT_KEY);
+$secret_key_manager = new SecretKeyManager();
+$admin = new Admin($OPT_KEY, $client, $secret_key_manager);
 
-    public function __construct() {
-        add_action('admin_menu', [$this, 'add_menu']);
-        add_action('admin_init', [$this, 'register_settings']);
+
+class Xniris_Newsletter {
+    public const OPT_KEY = 'xniris_weekly_brevo_options';
+    public const CRON_HOOK = 'xniris_weekly_brevo_send_event';
+
+    public function __construct(public readonly Admin $admin, public readonly BrevoClient $client) {
+        add_action('admin_menu', [$admin, 'add_menu']);
+        add_action('admin_init', [$admin, 'register_settings']);
         add_action(self::CRON_HOOK, [$this, 'build_and_send']);
         add_action('update_option_' . self::OPT_KEY, [$this, 'maybe_reschedule'], 10, 3);
         register_activation_hook(__FILE__, [$this, 'on_activate']);
         register_deactivation_hook(__FILE__, [$this, 'on_deactivate']);
-        add_action('admin_post_asso_weekly_brevo_send_now', [$this, 'handle_send_now']);        
+        add_action('admin_post_xniris_newsletter_send_now', [$this, 'handle_send_now']);        
     }
-
-    /* -------------------- Admin UI -------------------- */
-
-    public function add_menu() {
-        add_options_page(
-            'Newsletter hebdo (Brevo)',
-            'Newsletter hebdo (Brevo)',
-            'manage_options',
-            'asso-weekly-brevo',
-            [$this, 'render_settings_page']
-        );
-    }
-
-    public function register_settings() {
-        // Enregistrement des options
-        register_setting(self::OPT_KEY, self::OPT_KEY, [$this, 'sanitize_options']);
-        add_settings_section('main', '', '__return_false', self::OPT_KEY);
-
-        $stored_options = get_option(self::OPT_KEY, []); // tout le tableau d'options
-
-        // Vérification clé API
-        // if (empty($stored_options['api_key'])) {
-        //     add_settings_error(self::OPT_KEY, 'api_key_error', 'Veuillez configurer votre clé API Brevo.', 'error');
-        // } else {
-        //     add_settings_error(self::OPT_KEY, 'api_key_info', 'Clé API configurée', 'updated'); 
-        //     // On n'affiche pas la clé réelle pour sécurité
-        // }
-
-        $fields = [
-            'api_key'      => 'Clé API Brevo (v3)',
-            'sender_name'  => 'Nom expéditeur',
-            'sender_email' => 'Email expéditeur (domaine validé chez Brevo)',
-            'list_id'      => 'ID liste Brevo (marketing)',
-            'subject'      => 'Sujet de l’email',
-            'dow'          => 'Jour d’envoi (0=Dim, 6=Sam)',
-            'hour'         => 'Heure (0–23)',
-            'window_days'  => 'Période en jours (ex: 7)',
-            'include_updated' => 'Inclure articles modifiés (oui/non)',
-            'template_header' => 'Header HTML (optionnel)',
-            'template_footer' => 'Footer HTML (optionnel)',
-        ];
-
-        foreach ($fields as $key => $label) {
-            add_settings_field(
-                $key,
-                $label,
-                [$this, 'field_cb'],
-                self::OPT_KEY,
-                'main',
-                ['key' => $key, 'label' => $label, 'stored_options' => $stored_options]
-            );
-        }
-    }
-
-    public function field_cb($args) {
-        $o = get_option(self::OPT_KEY, $this->defaults_options());
-        $k = $args['key'];
-        $v = isset($o[$k]) ? $o[$k] : '';
-
-        switch ($k) {
-            case 'api_key':
-                // Affiche des étoiles si la clé est déjà définie
-                $display_value = $v ? '********' : '';
-                ?>
-                <input type="text" style="width: 100%;" name="<?php echo esc_attr(self::OPT_KEY . "[$k]"); ?>" value="<?php echo esc_attr($display_value); ?>" placeholder="Entrez une nouvelle clé si vous voulez la changer" />
-                <p class="description">La clé existante reste inchangée si vous ne modifiez pas ce champ.</p>
-                <?php
-                break;
-
-            case 'include_updated':
-                ?>
-                <label><input type="checkbox" name="<?php echo esc_attr(self::OPT_KEY . "[$k]"); ?>" value="1" <?php checked($v, 1); ?> /> Oui</label>
-                <?php
-                break;
-
-            case 'dow':
-                ?>
-                <select name="<?php echo esc_attr(self::OPT_KEY . "[$k]"); ?>">
-                    <?php
-                    $days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-                    for ($i=0; $i<7; $i++) printf('<option value="%d"%s>%s</option>', $i, selected(intval($v), $i, false), esc_html($days[$i]));
-                    ?>
-                </select>
-                <?php
-                break;
-
-            case 'hour':
-                ?>
-                <select name="<?php echo esc_attr(self::OPT_KEY . "[$k]"); ?>">
-                    <?php for ($i=0; $i<24; $i++) printf('<option value="%d"%s>%02d:00</option>', $i, selected(intval($v), $i, false), $i); ?>
-                </select>
-                <?php
-                break;
-
-            case 'template_header':
-            case 'template_footer':
-                ?>
-                <textarea rows="4" style="width: 100%;" name="<?php echo esc_attr(self::OPT_KEY . "[$k]"); ?>"><?php echo esc_textarea($v); ?></textarea>
-                <?php
-                break;
-
-            default:
-                ?>
-                <input type="text" style="width: 100%;" name="<?php echo esc_attr(self::OPT_KEY . "[$k]"); ?>" value="<?php echo esc_attr($v); ?>" />
-                <?php
-        }
-    }
-
-    public function render_settings_page() {
-        if (!current_user_can('manage_options')) return;
-        $options = get_option(self::OPT_KEY, $this->defaults_options());
-        if (isset($_GET['sent'])) {
-            if ($_GET['sent'] == '1') {
-                echo '<div class="notice notice-success is-dismissible"><p>Envoi test réussi ! Vérifiez votre boîte email.</p></div>';
-            } else {
-                echo '<div class="notice notice-error is-dismissible"><p>Échec de l’envoi test. Vérifiez la configuration API et les logs.</p></div>';
-            }
-        }
-        ?>
-        
-        <div class="wrap">
-            <h1>Newsletter hebdo (Brevo)</h1>
-            <form method="post" action="options.php">
-                <?php
-                settings_fields(self::OPT_KEY);
-                do_settings_sections(self::OPT_KEY);
-                submit_button('Enregistrer et (re)programmer');
-                ?>
-            </form>
-
-            <hr />
-            <h2>Actions</h2>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <?php wp_nonce_field('asso_weekly_brevo_send_now'); ?>
-                <input type="hidden" name="action" value="asso_weekly_brevo_send_now" />
-                <?php submit_button('Envoyer maintenant (test)', 'secondary'); ?>
-            </form>
-
-            <p><em>WP-Cron doit être déclenché (trafic ou cron système). Recommandé : cron serveur appelant <code>wp-cron.php?doing_wp_cron=1</code>.</em></p>
-        </div>
-        <?php
-    }
-
-    public function sanitize_options($in) {
-        $d = $this->defaults_options();
-        $out = [];
-
-        // Clé API : ne pas écraser si champ vide ou contient juste des étoiles
-        $api_key_input = trim(sanitize_text_field($in['api_key'] ?? ''));
-        $stored = get_option(self::OPT_KEY, []);
-        if ($api_key_input && $api_key_input !== '********') {
-            $out['api_key'] = $api_key_input;
-        } else {
-            // garde l’ancienne valeur
-            $out['api_key'] = $stored['api_key'] ?? '';
-        }
-
-        // Autres champs
-        $out['sender_name'] = sanitize_text_field($in['sender_name'] ?? '');
-        $out['sender_email'] = sanitize_email($in['sender_email'] ?? '');
-        $out['list_id'] = intval($in['list_id'] ?? 0);
-        $out['subject'] = sanitize_text_field($in['subject'] ?? $d['subject']);
-        $out['dow'] = min(6, max(0, intval($in['dow'] ?? $d['dow'])));
-        $out['hour'] = min(23, max(0, intval($in['hour'] ?? $d['hour'])));
-        $out['window_days'] = max(1, intval($in['window_days'] ?? $d['window_days']));
-        $out['include_updated'] = !empty($in['include_updated']) ? 1 : 0;
-        $out['template_header'] = wp_kses_post($in['template_header'] ?? '');
-        $out['template_footer'] = wp_kses_post($in['template_footer'] ?? '');
-
-        return $out;
-    }
-
-    /**
-     * Get default options
-     * @return array{api_key: string, dow: int, hour: int, include_updated: int, list_id: int, sender_email: mixed, sender_name: string, subject: string, template_footer: string, template_header: string, window_days: int}
-     */
-    private function defaults_options() {
-        return [
-            'api_key' => '',
-            'sender_name' => get_bloginfo('name'),
-            'sender_email' => get_option('admin_email'),
-            'list_id' => 0,
-            'subject' => 'Les articles de la semaine',
-            'dow' => 1,         // Lundi
-            'hour' => 9,        // 09:00
-            'window_days' => 7,
-            'include_updated' => 1,
-            'template_header' => '',
-            'template_footer' => '',
-        ];
-    }
-
     /* -------------------- Scheduling -------------------- */
-
     public function on_activate() {
         $this->schedule_next();
     }
@@ -238,7 +54,7 @@ class Asso_Weekly_Brevo {
     }
 
     private function next_timestamp() {
-        $o = get_option(self::OPT_KEY, $this->defaults_options());
+        $o = get_option(self::OPT_KEY, $this->admin->options());
         $tz_string = get_option('timezone_string');
         if ($tz_string) {
             try { $dtz = new DateTimeZone($tz_string); }
@@ -263,27 +79,27 @@ class Asso_Weekly_Brevo {
     
     public function handle_send_now() {
         if (!current_user_can('manage_options')) wp_die('Nope.');
-        check_admin_referer('asso_weekly_brevo_send_now');
+        check_admin_referer('xniris_newsletter_send_now');
 
         $ok = $this->build_and_send(true); // true = test manuel
 
         // rediriger avec paramètre ?sent=1 ou ?sent=0
-        wp_safe_redirect(add_query_arg('sent', $ok ? '1' : '0', admin_url('options-general.php?page=asso-weekly-brevo')));
+        wp_safe_redirect(add_query_arg('sent', $ok ? '1' : '0', admin_url('options-general.php?page=xniris-newsletter')));
         exit;
     }
 
     /* -------------------- Core: build & send -------------------- */
 
     public function build_and_send($test = false) {
-        $options = get_option(self::OPT_KEY, $this->defaults_options());
+        $options = get_option(self::OPT_KEY, $this->admin->options());
         if (empty($options['api_key']) || empty($options['sender_email']) || empty($options['list_id'])) {
-            error_log('[Asso Weekly Brevo] Options incomplètes.');
+            error_log('[Xniris Weekly Brevo] Options incomplètes.');
             return false;
         }
 
         $posts_html = $this->collect_posts_html($options);
         if (!$posts_html) {
-            error_log('[Asso Weekly Brevo] Aucun article dans la période.');
+            error_log('[Xniris Weekly Brevo] Aucun article dans la période.');
             return true; // Rien à envoyer, mais pas une erreur
         }
 
@@ -292,25 +108,27 @@ class Asso_Weekly_Brevo {
         $subject = $options['subject'];
 
         // Envoi via Marketing API: créer une campagne + sendNow
-        $client = new BrevoClient($options['api_key']);
-        $resp = $client->create_campaign($options, $subject, $html, $test);
+        $decrypted_api_key = $this->admin->decrypt_api_key_safe($options['api_key']);
+        $this->client->set_apiKey($decrypted_api_key);
+        // $client = new BrevoClient($options['api_key']);
+        $resp = $this->client->create_campaign($options, $subject, $html, $test);
         if(is_array($resp) && isset($resp['id'])) {
             $campaignId = $resp['id'];
         } else {
-            error_log('[Asso Weekly Brevo] Réponse inattendue lors de la création de campagne : ' . print_r($resp, true));
+            error_log('[Xniris Weekly Brevo] Réponse inattendue lors de la création de campagne : ' . print_r($resp, true));
             return false;
         }        
         if (!$campaignId) {
-            error_log('[Asso Weekly Brevo] Échec création campagne.');
+            error_log('[Xniris Weekly Brevo] Échec création campagne.');
             return false;
         }
         if($test) {
-            $sent = $client->send_campaign_now($campaignId, true); // test
+            $sent = $this->client->send_campaign_now($campaignId, true); // test
         }else{
-            $sent = $client->send_campaign_now($campaignId);
+            $sent = $this->client->send_campaign_now($campaignId);
         }
         if (!$sent) {
-            error_log('[Asso Weekly Brevo] Échec envoi campagne.');
+            error_log('[Xniris Weekly Brevo] Échec envoi campagne.');
             return false;
         }
 
@@ -419,4 +237,4 @@ class Asso_Weekly_Brevo {
 
 }
 
-new Asso_Weekly_Brevo();
+new Xniris_Newsletter($admin, $client);

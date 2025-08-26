@@ -5,7 +5,8 @@
 !.gitignore
 
 # Ré-inclure uniquement les plugins commençant par adsm_
-!adsm_*/
+!adsm-*/
+!adsm-*/**
 
 # Ignorer les fichiers système et temporaires
 *.DS_Store
