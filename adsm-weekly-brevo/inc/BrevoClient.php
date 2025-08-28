@@ -1,6 +1,13 @@
 <?php
+namespace Xniris;
+
 if (!defined('ABSPATH')) exit;
-class BrevoClient {
+require_once plugin_dir_path(__FILE__) . 'ClientInterface.php';
+require_once plugin_dir_path(__FILE__) . 'XnirisBase.php';
+
+use Xniris\ClientInterface;
+use Xniris\XnirisBase;
+class BrevoClient extends XnirisBase implements ClientInterface {
     private string $apiKey;
     private string $apiBase = 'https://api.brevo.com/v3/';
 
@@ -9,12 +16,12 @@ class BrevoClient {
      * @param string $apiKey Brevo API KEY
      */
 
-    public function __construct(private readonly string $OPT_KEY, string $apiKey = '') {
+    public function __construct(string $apiKey = '') {
         $this->apiKey = $apiKey;        
     }
 
     public function get_apiKey(): string {
-        $options = get_option($this->OPT_KEY);
+        $options = get_option(self::OPT_KEY);
             $this->apiKey = $options['api_key'] ?? '';
         return $this->apiKey;
     }
@@ -34,7 +41,7 @@ class BrevoClient {
      * @throws \Exception
      * @return array
      */
-    private function request(string $endpoint, array $body = [], string $method = 'GET'): ?array     {
+    public function request(string $endpoint, array $body = [], string $method = 'GET'): ?array{
         $url = $this->apiBase . ltrim($endpoint, '/');
 
         $args = [
@@ -76,6 +83,9 @@ class BrevoClient {
     public function get_senders(): array {
         return $this->request( 'senders');
     }
+    public function request_test(): array{
+        return $this->request('senders');
+    }
 
     public function create_list($name): array {
         $payload = [
@@ -101,7 +111,7 @@ class BrevoClient {
         return $this->request("contacts/lists/$list_id/contacts");
     }
 
-    public function get_contact($email): array {
+    public function get_contact(mixed $email): array {
         $encoded_email = rawurlencode($email);
         return $this->request("contacts/$encoded_email");
     }
@@ -137,7 +147,15 @@ class BrevoClient {
         return $this->request("contacts/lists/$list_id/contacts/remove", $payload, 'POST');
     }
 
-    public function create_campaign($options, $subject, $html, $test = false) {
+    /**
+     * Summary of create_campaign
+     * @param mixed $options
+     * @param mixed $subject
+     * @param mixed $html
+     * @param mixed $test false permet de garder la campagne en brouillon
+     * @return array
+     */
+    public function create_campaign($options, $subject, $html, $test = false):?array {
         $title = 'Weekly-news ' . date_i18n('Y-m-d H:i');
         $name = !$test ? $title : 'Test : ' . $title;
         $payload = [
@@ -171,7 +189,7 @@ class BrevoClient {
     /**
      * 
      * @param mixed $campaign_id
-     * @param mixed $test
+     * @param mixed $test envoie le mail uniquement à l'administrateur
      * @return bool
      */
     public function send_campaign_now($campaign_id, $test = false) {        

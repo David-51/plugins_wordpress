@@ -1,9 +1,16 @@
 <?php
+namespace Xniris;
 if (!defined('ABSPATH')) exit;
-class SecretKeyManager {
+require_once __DIR__ . '/XnirisBase.php';
+
+use Xniris\XnirisBase;
+class SecretKeyManager extends XnirisBase{
     private const SALT_CONST = 'XNIRIS_API_SALT';
     private const ALGO = 'aes-256-gcm';
 
+    public function __construct() {
+        parent::__construct();
+    }
     public function check_secret_key() {
         if (!defined(self::SALT_CONST)) {
             echo '<div class="notice notice-error"><h2>Xniris - Newsletter hebdo</h2><p>';
@@ -84,8 +91,8 @@ class SecretKeyManager {
         if ($plaintext === false) {
             throw new \RuntimeException('Échec du déchiffrement AES-GCM (auth tag invalide ou données corrompues).');
         }
-
         return $plaintext;
     }
+    
     
 }

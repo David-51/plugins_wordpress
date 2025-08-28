@@ -1,21 +1,24 @@
 <?php
+namespace Xniris;
 if (!defined('ABSPATH')) exit;
-// 
-class Admin {    
+require_once plugin_dir_path(__FILE__) . 'XnirisBase.php';
 
-    private bool $check_api_key = false;
+use Xniris\XnirisBase;
+class Admin extends XnirisBase{
+
+    private mixed $check_api_key = null; 
     private string $admin_email = '';
     private bool $admin_exists_in_client = false;
-    public function __construct(
-        private readonly string $OPT_KEY,
+    private ?string $stored_api_key = null;
+
+    private array $stored_options = [];
+    public function __construct(        
         private readonly BrevoClient $client,
-        private readonly SecretKeyManager $secretKeyManager
+        private readonly SecretKeyManager $secretKeyManager,
+        private readonly ApiKeyManager $apiKeyManager
     ) {
-        add_action('admin_notices', [$secretKeyManager, 'check_secret_key']);          
-        // Tester de suite dans le constructeur si la clé API existe, et si elle est valide.
-        // Tester si le user connecter est inscrite sur Brevo      
-        // Actions et filtres
-    }    
+        add_action('admin_notices', [$secretKeyManager, 'check_secret_key']);                  
+    }
 
     public function add_menu():void {
         add_options_page(
@@ -29,36 +32,34 @@ class Admin {
 
     public function register_settings() {
         // Enregistrement des options
-        register_setting($this->OPT_KEY, $this->OPT_KEY, [$this, 'sanitize_options']);
-        add_settings_section('main', '', '__return_false', $this->OPT_KEY);
+        register_setting(self::OPT_KEY, self::OPT_KEY, [$this, 'sanitize_options']);
         if($_SERVER['REQUEST_METHOD'] === 'POST') return;
-
-        $stored_options = get_option($this->OPT_KEY, []); // tout le tableau d'options
-        $fields = $this->options();
         
-        $stored_api_key = isset($stored_options['api_key']) && !empty($stored_options['api_key']) ? $stored_options['api_key'] : '';        
-        $this->is_valid_api_key($stored_api_key);
-
-        if(!empty($stored_api_key)){
-            if(!$this->check_api_key){
-                add_settings_error($this->OPT_KEY, 'api_key_error', 'La clé API n\'est pas valide.');
-            }else{                
-                $this->check_api_key = true;
-            }            
+        add_settings_section('main', '', '__return_false', self::OPT_KEY);        
+        
+        $this->check_api_key = $this->apiKeyManager->test_api_key();                        
+        
+        if($this->check_api_key === true) {
+            $this->admin_exists_in_client = $this->current_user_exists_in_client();
         }
-    
+
+        $stored_options = get_option(self::OPT_KEY, []); 
+        if($this->check_api_key !== true && $this->check_api_key !== 'empty') {
+            add_settings_error(self::OPT_KEY, 'api_key_error', 'La clé API n\'est pas valide.');            
+        }
+
+        $fields = $this->options();
         foreach ($fields as $key => $value) {            
             // On affiche toujours la clé API
-            if ($key !== 'api_key') {
-                if(!$stored_api_key) continue;
-                if(!$this->check_api_key) continue;
+            if ($key !== 'api_key'){
+                if($this->check_api_key !== true) continue;
             }            
 
             add_settings_field(
                 $key,
                 $value['label'],
                 [$this, 'field_callback'],
-                $this->OPT_KEY,
+                self::OPT_KEY,
                 'main',
                 [
                     'key' => $key,
@@ -70,7 +71,7 @@ class Admin {
     }
 
     public function field_callback($args) {
-        $options = get_option($this->OPT_KEY, $this->options());
+        $options = get_option(self::OPT_KEY, $this->options());
         $key = $args['key'];
         $value = isset($options[$key]) ? $options[$key] : '';        
 
@@ -78,22 +79,19 @@ class Admin {
             case 'api_key':
                 // Affiche des étoiles si la clé est déjà définie
                 $display_value = $value ? '********' : '';
-                if(!$value) {
-                    $placeholder = "Entrez une clé API";
-                }else{
-                    $placeholder = "Entrez une nouvelle clé API si vous voulez la changer";
-                }
+                $placeholder = !$value ? "Entrez une clé API" : "Entrez une nouvelle clé API si vous voulez la changer";
+                
                 ?>
                 <div style="display: flex; gap: 8px; align-items: center; max-width: 100%;">
                     <input type="text" 
                         style="flex: 1; width: 100%;" 
-                        name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>" 
+                        name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>" 
                         value="<?php echo esc_attr($display_value); ?>" 
                         placeholder="<?php echo esc_attr($placeholder); ?>" />
 
                     <?php if ($value): ?>
                         <button type="submit" 
-                                name="<?php echo esc_attr($this->OPT_KEY . '_delete_api_key'); ?>" 
+                                name="<?php echo esc_attr(self::OPT_KEY . '_delete_api_key'); ?>" 
                                 value="1"
                                 class="button button-secondary"
                                 onclick="return confirm('Supprimer la clé API ?')">
@@ -108,13 +106,13 @@ class Admin {
             break;
             case 'list_id':
                 ?>
-                <select name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>">
+                <select name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>">
                     <option value="<?php echo esc_attr($value ?? ''); ?>">
                         <?php esc_html_e('Sélectionnez une liste', 'xniris-newsletter'); ?>
                     </option>
                     <?php
-                    if(!empty($options['api_key'])) {
-                        $this->client->set_apiKey($this->decrypt_api_key_safe($options['api_key']));
+                    if($this->check_api_key === true) {
+                        $this->client->set_apiKey($this->apiKeyManager->get_decrypted_api_key());
                             $brevo_lists = ($this->client->get_lists());
                             if (!empty($brevo_lists['lists'])) {
                                 foreach ($brevo_lists['lists'] as $list) {
@@ -134,13 +132,13 @@ class Admin {
 
             case 'include_updated':
                 ?>
-                <label><input type="checkbox" name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>" value="1" <?php checked($value, 1); ?> /> Oui</label>
+                <label><input type="checkbox" name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>" value="1" <?php checked($value, 1); ?> /> Oui</label>
                 <?php
                 break;
 
             case 'dow':
                 ?>
-                <select name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>">
+                <select name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>">
                     <?php
                     $days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
                     for ($i=0; $i<7; $i++) 
@@ -152,7 +150,7 @@ class Admin {
 
             case 'hour':
                 ?>
-                <select name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>">
+                <select name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>">
                     <?php for ($i=0; $i<24; $i++) printf('<option value="%d"%s>%02d:00</option>', $i, selected(intval($value), $i, false), $i); ?>
                 </select>
                 <?php
@@ -161,18 +159,18 @@ class Admin {
             case 'template_header':
             case 'template_footer':
                 ?>
-                <textarea rows="4" style="width: 100%;" name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>"><?php echo esc_textarea($value); ?></textarea>
+                <textarea rows="4" style="width: 100%;" name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>"><?php echo esc_textarea($value); ?></textarea>
                 <?php
                 break;
             case 'sender_email':                
                 try{
-                ?><select name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>">
+                ?><select name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>">
                     <option value="<?php echo esc_attr($value ?? ''); ?>">
                         <?php esc_html_e('Sélectionnez un email', 'xniris-newsletter'); ?>
                     </option>
                     <?php
-                    if($options['api_key']) {
-                        $this->client->set_apiKey($this->decrypt_api_key_safe($options['api_key']));
+                    if($this->check_api_key === true) {
+                        $this->client->set_apiKey($this->apiKeyManager->get_decrypted_api_key());
                             $brevo_senders = ($this->client->get_senders());
                             if (!empty($brevo_senders['senders'])) {
                                 foreach ($brevo_senders['senders'] as $sender) {
@@ -195,7 +193,7 @@ class Admin {
                             printf('Une erreur s\'est produite : %s', esc_html($e->getMessage()));
                         echo '</p></div>';
                         add_settings_error(
-                        $this->OPT_KEY,
+                        self::OPT_KEY,
                         'sender_email_error',
                         'Erreur lors de la récupération des expéditeurs : ' . $e->getMessage(),
                         'error'
@@ -206,7 +204,7 @@ class Admin {
 
             default:
                 ?>
-                <input type="text" style="width: 100%;" name="<?php echo esc_attr($this->OPT_KEY . "[$key]"); ?>" value="<?php echo esc_attr($value); ?>" />
+                <input type="text" style="width: 100%;" name="<?php echo esc_attr(self::OPT_KEY . "[$key]"); ?>" value="<?php echo esc_attr($value); ?>" />
                 <?php
         }
     }
@@ -217,7 +215,13 @@ class Admin {
         
         // vérifier que l'email existe dans brevo
         
-
+        if (!$this->admin_exists_in_client) {
+            echo '<div class="notice notice-warning"><p>';
+            echo '⚠️ Votre email d\'administration WordPress (' . esc_html($current_user->user_email) . ') n\'existe pas dans votre Autorépondeur. ';
+            echo 'Ajoutez-le en tant que contact pour pouvoir envoyer des mails de test.';
+            echo '</p></div>';
+        }
+        
         if (isset($_GET['sent'])) {
             if ($_GET['sent'] == '1') {
                 echo '<div class="notice notice-success is-dismissible"><p>Envoi test réussi ! Vérifiez votre boîte email.</p></div>';
@@ -231,20 +235,21 @@ class Admin {
             <h1>Newsletter hebdo (Brevo)</h1>
             <form method="post" action="options.php">
                 <?php
-                settings_fields($this->OPT_KEY);
-                do_settings_sections($this->OPT_KEY);
+                settings_fields(self::OPT_KEY);
+                do_settings_sections(self::OPT_KEY);
                 submit_button('Enregistrer et (re)programmer');
                 ?>
             </form>            
-
+            <?php if($this->check_api_key === true && $this->admin_exists_in_client): ?>
             <hr />
+            
             <h2>Email de Test</h2>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <?php wp_nonce_field('xniris_newsletter_send_now'); ?>
                 <input type="hidden" name="action" value="xniris_newsletter_send_now" />
                 <?php submit_button('Envoyer un test maintenant', 'secondary'); ?>
             </form>
-
+            <?php endif; ?>
             <p><em>WP-Cron doit être déclenché (trafic ou cron système). Recommandé : cron serveur appelant <code>wp-cron.php?doing_wp_cron=1</code>.</em></p>
         </div>
         <?php
@@ -255,14 +260,14 @@ class Admin {
         $wp_settings_errors = [];
 
         $defaults = $this->options();
-        $stored   = get_option($this->OPT_KEY, []);
+        $stored   = get_option(self::OPT_KEY, []);
 
         $out = $stored; // point de départ : garder les anciennes options        
 
         // Suppression de la clé API
-        if (!empty($_POST[$this->OPT_KEY . '_delete_api_key']) && $_POST[$this->OPT_KEY . '_delete_api_key'] === '1') {
+        if (!empty($_POST[self::OPT_KEY . '_delete_api_key']) && $_POST[self::OPT_KEY . '_delete_api_key'] === '1') {
             unset($out['api_key']);
-            add_settings_error($this->OPT_KEY, 'api_key_deleted', 'Clé API supprimée.', 'updated');
+            add_settings_error(self::OPT_KEY, 'api_key_deleted', 'Clé API supprimée.', 'updated');
             return $out;
         }
 
@@ -271,8 +276,8 @@ class Admin {
         if ($api_key_input && $api_key_input !== '********') {
             error_log('Mise à jour de la clé API');
             $out['api_key'] = $this->secretKeyManager->encrypt($api_key_input);
-            
-            add_settings_error($this->OPT_KEY, 'api_key_error', 'Clé API enregistrée avec succès.', 'updated');
+
+            add_settings_error(self::OPT_KEY, 'api_key_error', 'Clé API enregistrée avec succès.', 'updated');
         }
 
         // Mise à jour des autres champs
@@ -343,29 +348,12 @@ class Admin {
                 'default' => ''],
         ];        
     }
-    public function decrypt_api_key_safe(string $encrypted): string {
+    private function current_user_exists_in_client(): bool {        
         try {
-            return $this->secretKeyManager->decrypt($encrypted);
-        } catch (\Exception $e) {
-            error_log('Erreur déchiffrement clé API : ' . $e->getMessage());
-            return '';
-        }        
-    }
-    private function is_valid_api_key(string $api_key): bool {
-        try{
-            $safe_key = $this->decrypt_api_key_safe($api_key);
-            $this->client->set_apiKey($safe_key);
-            $this->client->get_senders();            
-        }catch(\Exception $e){
-            return $this->check_api_key = false;
-        }        
-        return $this->check_api_key = true;
-    }
-    private function current_user_exists_in_client(): bool {
-        $current_user = wp_get_current_user();
-        $admin_mail = $current_user->user_email;
-        try {
-            $this->client->set_apiKey($this->decrypt_api_key_safe($this->check_api_key));
+            $current_user = wp_get_current_user();
+            $admin_mail = $current_user->user_email;
+
+            $this->client->set_apiKey($this->apiKeyManager->get_decrypted_api_key());
             $contact = $this->client->get_contact($admin_mail);
             return !empty($contact);
         } catch (\Exception $e) {

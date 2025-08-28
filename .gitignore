@@ -7,6 +7,8 @@
 # Ré-inclure uniquement les plugins commençant par adsm_
 !adsm-*/
 !adsm-*/**
+!xniris-*/
+!xniris-*/**
 
 # Ignorer les fichiers système et temporaires
 *.DS_Store

@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: ADSM – Newsletter hebdo (Brevo)
- * Description: Envoie chaque semaine un récap des articles (7 derniers jours par défaut) via l’API Brevo. Page d’options incluse.
+ * Plugin Name: Xniris – Newsletter hebdo (Brevo)
+ * Description: Envoie chaque semaine un récap des articles (7 derniers jours par défaut) via l’API d'un service d'emailing. (Brevo Uniquement)
  * Version: 1.0.0
- * Author: Chazam
+ * Author: David G
  * License: GPLv2 or later
  */
 
@@ -11,19 +11,31 @@ if (!defined('ABSPATH')) exit;
 require_once __DIR__ . '/inc/BrevoClient.php';
 require_once __DIR__ . '/inc/Admin.php';
 require_once __DIR__ . '/inc/SecretKeyManager.php';
+require_once __DIR__ . '/inc/ApiKeyManager.php';
+
+use Xniris\Admin;
+use Xniris\BrevoClient;
+use Xniris\SecretKeyManager;
+use Xniris\ApiKeyManager;
+use Xniris\ClientInterface;
 
 $OPT_KEY = 'xniris_weekly_brevo_options';
 $CRON_HOOK = 'xniris_weekly_brevo_send_event';
-$client = new BrevoClient($OPT_KEY);
+$client = new BrevoClient();
 $secret_key_manager = new SecretKeyManager();
-$admin = new Admin($OPT_KEY, $client, $secret_key_manager);
+$api_key_manager = new ApiKeyManager($secret_key_manager, $client);
+$admin = new Admin($client, $secret_key_manager, $api_key_manager);
 
 
 class Xniris_Newsletter {
     public const OPT_KEY = 'xniris_weekly_brevo_options';
     public const CRON_HOOK = 'xniris_weekly_brevo_send_event';
 
-    public function __construct(public readonly Admin $admin, public readonly BrevoClient $client) {
+    public function __construct(
+        public readonly Admin $admin, 
+        public readonly ClientInterface $client,
+        public readonly ApiKeyManager $apiKeyManager
+        ) {
         add_action('admin_menu', [$admin, 'add_menu']);
         add_action('admin_init', [$admin, 'register_settings']);
         add_action(self::CRON_HOOK, [$this, 'build_and_send']);
@@ -93,13 +105,13 @@ class Xniris_Newsletter {
     public function build_and_send($test = false) {
         $options = get_option(self::OPT_KEY, $this->admin->options());
         if (empty($options['api_key']) || empty($options['sender_email']) || empty($options['list_id'])) {
-            error_log('[Xniris Weekly Brevo] Options incomplètes.');
+            error_log('[Xniris Newsletter] Options incomplètes.');
             return false;
         }
 
         $posts_html = $this->collect_posts_html($options);
         if (!$posts_html) {
-            error_log('[Xniris Weekly Brevo] Aucun article dans la période.');
+            error_log('[Xniris Newsletter] Aucun article dans la période.');
             return true; // Rien à envoyer, mais pas une erreur
         }
 
@@ -108,18 +120,18 @@ class Xniris_Newsletter {
         $subject = $options['subject'];
 
         // Envoi via Marketing API: créer une campagne + sendNow
-        $decrypted_api_key = $this->admin->decrypt_api_key_safe($options['api_key']);
+        $decrypted_api_key = $this->apiKeyManager->get_decrypted_api_key();
         $this->client->set_apiKey($decrypted_api_key);
         // $client = new BrevoClient($options['api_key']);
         $resp = $this->client->create_campaign($options, $subject, $html, $test);
         if(is_array($resp) && isset($resp['id'])) {
             $campaignId = $resp['id'];
         } else {
-            error_log('[Xniris Weekly Brevo] Réponse inattendue lors de la création de campagne : ' . print_r($resp, true));
+            error_log('[Xniris Newsletter] Réponse inattendue lors de la création de campagne : ' . print_r($resp, true));
             return false;
         }        
         if (!$campaignId) {
-            error_log('[Xniris Weekly Brevo] Échec création campagne.');
+            error_log('[Xniris Newsletter] Échec création campagne.');
             return false;
         }
         if($test) {
@@ -128,7 +140,7 @@ class Xniris_Newsletter {
             $sent = $this->client->send_campaign_now($campaignId);
         }
         if (!$sent) {
-            error_log('[Xniris Weekly Brevo] Échec envoi campagne.');
+            error_log('[Xniris Newsletter] Échec envoi campagne.');
             return false;
         }
 
@@ -202,7 +214,7 @@ class Xniris_Newsletter {
             <body style="margin:0;padding:0;background:#f6f6f6;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f6f6;">
                 <tr>
-                    <td align="center" style="padding:24px;">
+                    <td style="padding:24px; text-align: center;">
                         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
                             <tr>
                                 <td style="padding:0px;">
@@ -237,4 +249,4 @@ class Xniris_Newsletter {
 
 }
 
-new Xniris_Newsletter($admin, $client);
+new Xniris_Newsletter($admin, $client, $api_key_manager);
