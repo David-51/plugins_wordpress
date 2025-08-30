@@ -15,7 +15,8 @@ class Admin extends XnirisBase{
     public function __construct(        
         private readonly BrevoClient $client,
         private readonly SecretKeyManager $secretKeyManager,
-        private readonly ApiKeyManager $apiKeyManager
+        private readonly ApiKeyManager $apiKeyManager,
+        private readonly NewsletterOptions $newsLetterOptions
     ) {
         add_action('admin_notices', [$secretKeyManager, 'check_secret_key']);                  
     }
@@ -32,7 +33,7 @@ class Admin extends XnirisBase{
 
     public function register_settings() {
         // Enregistrement des options
-        register_setting(self::OPT_KEY, self::OPT_KEY, [$this, 'sanitize_options']);
+        register_setting(self::OPT_KEY, self::OPT_KEY, [$this->newsLetterOptions, 'sanitize_options']);
         if($_SERVER['REQUEST_METHOD'] === 'POST') return;
         
         add_settings_section('main', '', '__return_false', self::OPT_KEY);        
@@ -43,12 +44,12 @@ class Admin extends XnirisBase{
             $this->admin_exists_in_client = $this->current_user_exists_in_client();
         }
 
-        $stored_options = get_option(self::OPT_KEY, []); 
+        $stored_options = $this->newsLetterOptions->get_options();
         if($this->check_api_key !== true && $this->check_api_key !== 'empty') {
             add_settings_error(self::OPT_KEY, 'api_key_error', 'La clé API n\'est pas valide.');            
         }
 
-        $fields = $this->options();
+        $fields = $this->newsLetterOptions->options();
         foreach ($fields as $key => $value) {            
             // On affiche toujours la clé API
             if ($key !== 'api_key'){
@@ -71,7 +72,9 @@ class Admin extends XnirisBase{
     }
 
     public function field_callback($args) {
-        $options = get_option(self::OPT_KEY, $this->options());
+        // $options = get_option(self::OPT_KEY, $this->options());
+        $options = $this->newsLetterOptions->get_options();
+        
         $key = $args['key'];
         $value = isset($options[$key]) ? $options[$key] : '';        
 
@@ -255,99 +258,6 @@ class Admin extends XnirisBase{
         <?php
     }
 
-    public function sanitize_options($in) {
-        global $wp_settings_errors;
-        $wp_settings_errors = [];
-
-        $defaults = $this->options();
-        $stored   = get_option(self::OPT_KEY, []);
-
-        $out = $stored; // point de départ : garder les anciennes options        
-
-        // Suppression de la clé API
-        if (!empty($_POST[self::OPT_KEY . '_delete_api_key']) && $_POST[self::OPT_KEY . '_delete_api_key'] === '1') {
-            unset($out['api_key']);
-            add_settings_error(self::OPT_KEY, 'api_key_deleted', 'Clé API supprimée.', 'updated');
-            return $out;
-        }
-
-        // Mise à jour de la clé API (si saisie)
-        $api_key_input = trim(sanitize_text_field($in['api_key'] ?? ''));
-        if ($api_key_input && $api_key_input !== '********') {
-            error_log('Mise à jour de la clé API');
-            $out['api_key'] = $this->secretKeyManager->encrypt($api_key_input);
-
-            add_settings_error(self::OPT_KEY, 'api_key_error', 'Clé API enregistrée avec succès.', 'updated');
-        }
-
-        // Mise à jour des autres champs
-        $out['sender_name']     = sanitize_text_field($in['sender_name']    ?? ($stored['sender_name']    ?? $defaults['sender_name']['default']));
-        $out['sender_email']    = sanitize_email($in['sender_email']        ?? ($stored['sender_email']   ?? $defaults['sender_email']['default']));
-        $out['list_id']         = intval($in['list_id']                     ?? ($stored['list_id']        ?? $defaults['list_id']['default']));
-        $out['subject']         = sanitize_text_field($in['subject']        ?? ($stored['subject']        ?? $defaults['subject']['default']));
-        $out['dow']             = min(6, max(0, intval($in['dow']          ?? ($stored['dow']            ?? $defaults['dow']['default']))));
-        $out['hour']            = min(23, max(0, intval($in['hour']        ?? ($stored['hour']           ?? $defaults['hour']['default']))));
-        $out['window_days']     = max(1, intval($in['window_days']          ?? ($stored['window_days']    ?? $defaults['window_days']['default'])));
-        $out['include_updated'] = !empty($in['include_updated']) ? 1 : 0;
-        $out['template_header'] = wp_kses_post($in['template_header']       ?? ($stored['template_header'] ?? ''));
-        $out['template_footer'] = wp_kses_post($in['template_footer']       ?? ($stored['template_footer'] ?? ''));
-
-    return $out;
-}
-
-    /**
-     * Get default options
-     * @return array{
-     *   api_key: array{label: string, default: string},
-     *   sender_name: array{label: string, default: string},
-     *   sender_email: array{label: string, default: string},
-     *   list_id: array{label: string, default: int},
-     *   subject: array{label: string, default: string},
-     *   dow: array{label: string, default: int},
-     *   hour: array{label: string, default: int},
-     *   window_days: array{label: string, default: int},
-     *   include_updated: array{label: string, default: int},
-     *   template_header: array{label: string, default: string},
-     *   template_footer: array{label: string, default: string}
-     * }
-     */
-    public function options(): array {
-        return [
-            'api_key'         => [
-                'label' => 'Clé API Brevo (v3)',                     
-                'default' => ''],
-            'sender_name'     => [
-                'label' => 'Nom expéditeur',                         
-                'default' => get_bloginfo('name')],
-            'sender_email'    => [
-                'label' => 'Email expéditeur (domaine validé)',      
-                'default' => get_option('admin_email')],
-            'list_id'         => [
-                'label' => 'Liste d\'envoie',
-                'default' => 0],            
-            'subject'         => [
-                'label' => 'Sujet de l’email',                       
-                'default' => 'Les articles de la semaine'],
-            'dow'             => [
-                'label' => 'Jour d’envoi',            
-                'default' => 1],  // Lundi
-            'hour'            => [
-                'label' => 'Heure',                           
-                'default' => 9],  // 09:00
-            'window_days'     => [
-                'label' => 'Période en jours (ex: 7)',               
-                'default' => 7],
-            'include_updated' => [
-                'label' => 'Inclure articles modifiés (oui/non)',    
-                'default' => 1],
-            'template_header' => [
-                'label' => 'Header HTML (optionnel)',
-                'default' => ''],
-            'template_footer' => [
-                'label' => 'Footer HTML (optionnel)',
-                'default' => ''],
-        ];        
-    }
     private function current_user_exists_in_client(): bool {        
         try {
             $current_user = wp_get_current_user();

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Xniris – Newsletter hebdo (Brevo)
+ * Plugin Name: Xniris – Newsletters
  * Description: Envoie chaque semaine un récap des articles (7 derniers jours par défaut) via l’API d'un service d'emailing. (Brevo Uniquement)
  * Version: 1.0.0
  * Author: David G
@@ -12,21 +12,23 @@ require_once __DIR__ . '/inc/BrevoClient.php';
 require_once __DIR__ . '/inc/Admin.php';
 require_once __DIR__ . '/inc/SecretKeyManager.php';
 require_once __DIR__ . '/inc/ApiKeyManager.php';
+require_once __DIR__ . '/inc/NewsletterOptions.php';
+
 
 use Xniris\Admin;
 use Xniris\BrevoClient;
 use Xniris\SecretKeyManager;
 use Xniris\ApiKeyManager;
 use Xniris\ClientInterface;
+use Xniris\NewsletterOptions;
 
 $OPT_KEY = 'xniris_weekly_brevo_options';
 $CRON_HOOK = 'xniris_weekly_brevo_send_event';
 $client = new BrevoClient();
 $secret_key_manager = new SecretKeyManager();
 $api_key_manager = new ApiKeyManager($secret_key_manager, $client);
-$admin = new Admin($client, $secret_key_manager, $api_key_manager);
-
-
+$newsLetterOptions = new NewsletterOptions($secret_key_manager);
+$admin = new Admin($client, $secret_key_manager, $api_key_manager, $newsLetterOptions);
 class Xniris_Newsletter {
     public const OPT_KEY = 'xniris_weekly_brevo_options';
     public const CRON_HOOK = 'xniris_weekly_brevo_send_event';
@@ -34,7 +36,8 @@ class Xniris_Newsletter {
     public function __construct(
         public readonly Admin $admin, 
         public readonly ClientInterface $client,
-        public readonly ApiKeyManager $apiKeyManager
+        public readonly ApiKeyManager $apiKeyManager,
+        private readonly NewsletterOptions $newsLetterOptions
         ) {
         add_action('admin_menu', [$admin, 'add_menu']);
         add_action('admin_init', [$admin, 'register_settings']);
@@ -66,7 +69,7 @@ class Xniris_Newsletter {
     }
 
     private function next_timestamp() {
-        $o = get_option(self::OPT_KEY, $this->admin->options());
+        $o = $this->newsLetterOptions->get_options();
         $tz_string = get_option('timezone_string');
         if ($tz_string) {
             try { $dtz = new DateTimeZone($tz_string); }
@@ -103,7 +106,7 @@ class Xniris_Newsletter {
     /* -------------------- Core: build & send -------------------- */
 
     public function build_and_send($test = false) {
-        $options = get_option(self::OPT_KEY, $this->admin->options());
+        $options = $this->newsLetterOptions->get_options();
         if (empty($options['api_key']) || empty($options['sender_email']) || empty($options['list_id'])) {
             error_log('[Xniris Newsletter] Options incomplètes.');
             return false;
@@ -249,4 +252,4 @@ class Xniris_Newsletter {
 
 }
 
-new Xniris_Newsletter($admin, $client, $api_key_manager);
+new Xniris_Newsletter($admin, $client, $api_key_manager, $newsLetterOptions);
